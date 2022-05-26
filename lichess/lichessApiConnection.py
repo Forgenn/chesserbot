@@ -27,8 +27,8 @@ class LichessApi:
         return requests.get(self.base_url + "/api/stream/event", headers=self.headers, stream=True)
 
     def stream_events(self, control_queue):
-        #La api retorna un stream, pel que necessitem un thread
-        #dedicat a rebre nous events
+        #The API returns a stream, so we need a dedicated process
+        #to receive new events
         while not self.get_stop():
             try:
                 response = self.get_events()
@@ -52,8 +52,8 @@ class LichessApi:
         return requests.get(self.base_url + f'/api/bot/game/stream/{challenge_id}', headers=self.headers, stream=True)
 
     def stream_match(self, challenge_id, match_queue):
-        # La api retorna un stream, pel que necessitem un thread
-        # dedicat a rebre nous events del match
+        #The API returns a stream, so we need a dedicated process
+        #to receive new match events
         while not self.get_stop():
             try:
                 response = self.get_match(challenge_id)
@@ -83,26 +83,27 @@ class LichessApi:
 class lichessApiManager(BaseManager): #Custom Manager https://docs.python.org/3/library/multiprocessing.html#customized-managers
     pass
 
-#Haurem de passar una queue desde main (o desde on truquem aixo) per compartir els moviments
-# o una pipe de multiprocesssing
-def start(move_queue):
-    #Registrem la classe lichess_api i Queue al manager
+
+def start(lichess_move_queue, chesser_move_queue):
     lichessApiManager.register('lichess_api', LichessApi)
     lichessApiManager.register('Queue', multiprocessing.Queue)
 
     with lichessApiManager() as lichess_api_manager:
 
-        lichess_api = lichess_api_manager.lichess_api()
         print("Started listening for events")
 
-        # Igual totes les queues van tambe al objecte
+        lichess_api = lichess_api_manager.lichess_api()
+
+
         control_queue = lichess_api_manager.Queue()
         match_queue = lichess_api_manager.Queue()
-        control_stream = multiprocessing.Process(target=lichess_api.stream_events, args=[control_queue])
-        control_stream.start()
+
+        #Start process to receive events
+        control_stream = multiprocessing.Process(target=lichess_api.stream_events, args=[control_queue]).start()
+
 
         challenge_id = ''
-        in_match = False # Ficar en classe
+        in_match = False
 
         while not lichess_api.get_stop():
             try:
@@ -144,17 +145,17 @@ def start(move_queue):
             try:
                 match match['type']:
                     case "gameFull":
-                        #Inici partida
+                        #Game started
                         pass
                     case "gameState":
                         print("Received game state\n")
-                        #Per cada moviment
+                        #For each move
                         #Aqui hem de respondre amb el moviment del jugador fisic
                         pprint(match)
 
-                        #Jugador a lichess sempre anira primer
-                        if lichess_api.get_n_move() % 2 == 0:
-                            move_queue.put(match['moves'])
+                        #Lichess player always second
+                        if lichess_api.get_n_move() % 2 == 1:
+                            lichess_move_queue.put(match['moves'])
                             print("Lichess user turn")
                         
                         lichess_api.next_turn()
@@ -171,7 +172,7 @@ def start(move_queue):
             except:
                 pass
 
-            if lichess_api.get_n_move() % 2 == 1:
+            if lichess_api.get_n_move() % 2 == 0:
                 #Consumir moviment del usuari fisic i enviar a lichess
                 pass
 
@@ -180,12 +181,12 @@ def start(move_queue):
 
 if __name__ == '__main__':
 
-    move_queue = multiprocessing.Queue() #Queue on rebrem els nous moviments
+    lichess_move_queue = multiprocessing.Queue() #Queue on rebrem els nous moviments
     try:
         #A main 2 queues o 1 queue amb tuplas, una llista de moviments per cada jugador
-        start(move_queue)
+        start(lichess_move_queue)
     except KeyboardInterrupt:
         print("Keyboard interrupt")
     finally:
-        print(move_queue.get())
+        print(lichess_move_queue.get())
 
