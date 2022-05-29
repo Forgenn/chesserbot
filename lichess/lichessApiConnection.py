@@ -35,8 +35,6 @@ class LichessApi:
             except:
                 pass
             time.sleep(1)
-        print('Stopping stream: events')
-        return
 
     def abort_match(self, challenge_id):
         requests.post(self.base_url + f'/api/board/game/{challenge_id}/abort', headers={"Authorization": f"Bearer {self.API_KEY}"})
@@ -64,8 +62,6 @@ class LichessApi:
             except:
                 pass
             time.sleep(1)
-        print('Stopping stream: match')
-        return
     
     def get_stop(self):
         return self.stop
@@ -131,16 +127,18 @@ def start(lichess_move_queue, chesser_move_queue):
                         case "gameStart":
                             if not in_match:
                                 print("Game Started\n")
-                                match_stream = multiprocessing.Process(target=lichess_api.stream_match, args=[challenge_id, match_queue]).start()
+                                match_stream = multiprocessing.Process(target=lichess_api.stream_match, args=[challenge_id, match_queue])
+                                match_stream.start()
                                 in_match = True
                                 event.clear()
                             pass
                         case "gameFinish":
-                            # Game finished
+                            # Game finished, shutdown
                             print("Game finished")
                             lichess_api.set_stop()
-                            control_stream.join()
-                            match_stream.join()
+                            control_stream.terminate()
+                            match_stream.terminate()
+                            lichess_api_manager.shutdown()
                             return
                 except:
                     pass
@@ -158,7 +156,6 @@ def start(lichess_move_queue, chesser_move_queue):
                             pass
                         case "gameState":
                             # Lichess player always second
-                            print("Game state:", game_state, "Match:", match)
                             if len(match['moves']) % 2 == 1 and game_state != match:
                                 print("Received game state\n")
                                 lichess_move_queue.put(match['moves'].split()[-1])
@@ -184,7 +181,7 @@ def start(lichess_move_queue, chesser_move_queue):
                         except:
                             pass 
 
-                time.sleep(2)
+                time.sleep(1)
 
         except KeyboardInterrupt:
             if in_match:
