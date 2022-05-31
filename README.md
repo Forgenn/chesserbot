@@ -21,6 +21,6 @@ Chesserbot is a SCARA robot that plays chess. It works by digitalizing a chess b
 > pip install -r requirements.txt
 4. Execute chessboard.py
 # Authors
-Pol Monedero - Forgenn
-Saúl Adserias - saul44203
-Pol Carulla - PolCarulla
+- Saúl Adserias | saul44203
+- Pol Monedero | Forgenn
+- Pol Carulla | PolCarulla
